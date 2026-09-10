@@ -21,7 +21,7 @@ button,input{font:inherit}button{min-height:48px;border:0;border-radius:12px;fon
 .label{color:#6b7280}.value{text-align:right;font-weight:600}
 #reader{display:none;margin-top:12px;border-radius:12px;overflow:hidden;background:#000}
 .actions{display:flex;gap:8px;margin-top:12px}.actions button{flex:1}
-.hint{font-size:12px;color:#6b7280;margin-top:8px}
+.hint{font-size:12px;color:#6b7280;margin-top:8px}.camera-tools{display:flex;gap:8px;margin-top:10px}.camera-tools button{flex:1;background:#eef0f3}.scanbox{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:78%;height:28%;border:3px solid white;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.18);pointer-events:none}.reader-wrap{position:relative}.zoomline{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:#6b7280}.zoomline input{flex:1}
 </style>
 </head>
 <body>
@@ -31,7 +31,7 @@ button,input{font:inherit}button{min-height:48px;border:0;border-radius:12px;fon
 
 <div class="card">
   <button id="scan" class="scan">📷 Scan Barcode</button>
-  <div id="reader"></div>
+  <div class="reader-wrap"><div id="reader"></div><div id="scanbox" class="scanbox" style="display:none"></div></div><div id="cameraTools" class="camera-tools" style="display:none"><button id="torch">🔦 Flash</button><button id="zoomReset">1× Zoom</button></div><div id="zoomLine" class="zoomline" style="display:none"><span>Zoom</span><input id="zoom" type="range" min="1" max="3" step="0.1" value="1"><span id="zoomVal">1×</span></div>
   <div id="status" class="status">Ready — tap Scan Barcode.</div>
 </div>
 
@@ -65,7 +65,7 @@ P.forEach(p=>{
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-let scanner=null, running=false, audioCtx=null;
+let scanner=null, running=false, audioCtx=null, track=null, torchOn=false, zoomMax=1;
 
 function beep(type){
   try{
@@ -141,9 +141,43 @@ async function stopScanner(){
     try{await scanner.stop();}catch(e){}
     try{scanner.clear();}catch(e){}
   }
-  scanner=null; running=false;
+  scanner=null; running=false; track=null; torchOn=false;
   $('reader').style.display='none';
+  $('scanbox').style.display='none';
+  $('cameraTools').style.display='none';
+  $('zoomLine').style.display='none';
   $('scan').textContent='📷 Scan Barcode';
+}
+
+async function setupCameraControls(){
+  try{
+    const video=document.querySelector('#reader video');
+    track=video?.srcObject?.getVideoTracks?.()[0] || null;
+    if(!track) return;
+    const caps=track.getCapabilities?.() || {};
+    if(caps.torch) $('torch').style.display='block'; else $('torch').style.display='none';
+    zoomMax=Number(caps.zoom?.max||1);
+    const zoomInput=$('zoom');
+    if(zoomMax>1){
+      zoomInput.max=Math.min(3,zoomMax);
+      zoomInput.value=1;
+      $('zoomLine').style.display='flex';
+    } else $('zoomLine').style.display='none';
+    $('cameraTools').style.display='flex';
+    $('scanbox').style.display='block';
+  }catch(e){}
+}
+
+async function setZoom(v){
+  try{
+    if(!track) return;
+    const caps=track.getCapabilities?.();
+    if(caps?.zoom){
+      const z=Math.min(Number(v),Number(caps.zoom.max));
+      await track.applyConstraints({advanced:[{zoom:z}]});
+      $('zoomVal').textContent=z.toFixed(1).replace('.0','')+'×';
+    }
+  }catch(e){}
 }
 
 async function startScanner(){
@@ -151,25 +185,43 @@ async function startScanner(){
   $('result').style.display='none';
   $('reader').style.display='block';
   $('scan').textContent='✕ Stop Scanner';
-  $('status').textContent='Point the camera at the barcode.';
+  $('status').textContent='Place the barcode inside the box. Move closer if needed.';
   try{
     if(!scanner) scanner=new Html5Qrcode('reader');
     running=true;
     await scanner.start(
-      {facingMode:'environment'},
-      {fps:12,qrbox:{width:280,height:140}},
+      {facingMode:{exact:'environment'}},
+      {
+        fps:15,
+        qrbox:{width:320,height:160},
+        aspectRatio:1.7777778,
+        disableFlip:true,
+        formatsToSupport:[
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39
+        ]
+      },
       async text=>{
         await stopScanner();
         search(text,true);
       },
       ()=>{}
     );
+    await new Promise(r=>setTimeout(r,350));
+    await setupCameraControls();
   }catch(e){
     $('status').textContent='Camera unavailable. Check permission and make sure the site is opened with HTTPS.';
     await stopScanner();
   }
 }
 
+$('torch').onclick=async()=>{try{if(track){torchOn=!torchOn;await track.applyConstraints({advanced:[{torch:torchOn}]});$('torch').textContent=torchOn?'🔦 Flash On':'🔦 Flash';}}catch(e){}};
+$('zoom').oninput=e=>{setZoom(e.target.value)};
+$('zoomReset').onclick=()=>{$('zoom').value=1;setZoom(1)};
 $('scan').onclick=startScanner;
 $('go').onclick=()=>search($('q').value);
 $('q').onkeydown=e=>{if(e.key==='Enter')search(e.target.value)};
