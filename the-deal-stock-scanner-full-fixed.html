@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>The Deal – Stock Scanner</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+button,input{font:inherit}
+button{min-height:46px;border:0;border-radius:12px;font-weight:700;padding:0 15px;cursor:pointer}
+.app{min-height:100vh}
+.topbar{height:58px;background:#111827;color:#fff;display:flex;align-items:center;gap:12px;padding:0 14px;position:sticky;top:0;z-index:20}
+.menu{background:transparent;color:#fff;font-size:25px;min-height:42px;padding:0 8px}
+.title{font-size:17px;font-weight:800}
+.drawer{position:fixed;inset:0;z-index:30;display:none}
+.drawer.open{display:block}
+.drawer-bg{position:absolute;inset:0;background:rgba(0,0,0,.38)}
+.drawer-panel{position:absolute;left:0;top:0;bottom:0;width:min(310px,86vw);background:#fff;padding:18px 14px;box-shadow:8px 0 30px rgba(0,0,0,.18)}
+.drawer-title{font-size:20px;font-weight:800;margin:6px 8px 20px}
+.nav{display:flex;flex-direction:column;gap:7px}
+.nav button{width:100%;text-align:left;background:#f3f4f6}
+.nav button.active{background:#111827;color:#fff}
+main{max-width:620px;margin:auto;padding:18px 14px 34px}
+.page{display:none}.page.active{display:block}
+h1{font-size:23px;margin:0}.sub{color:#6b7280;font-size:13px;margin:4px 0 16px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin-bottom:12px}
+.scan{width:100%;background:#111827;color:#fff;font-size:17px}
+.secondary{background:#eef0f3}
+.manual{display:flex;gap:8px}.manual input{flex:1;min-width:0;border:1px solid #d1d5db;border-radius:12px;padding:0 12px;font-size:17px}
+.status{font-size:13px;color:#6b7280;margin-top:9px}
+.hint{font-size:12px;color:#6b7280;margin-top:8px}
+#reader{display:none;margin-top:12px;border-radius:12px;overflow:hidden;background:#000}
+.reader-wrap{position:relative}
+.scanbox{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:78%;height:28%;border:3px solid #fff;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.18);pointer-events:none;display:none}
+.camera-tools{display:none;gap:8px;margin-top:10px}.camera-tools button{flex:1;background:#eef0f3}
+.zoomline{display:none;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:#6b7280}.zoomline input{flex:1}
+.result{display:none}.badge{display:inline-block;border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800}
+.ok{background:#dcfce7;color:#166534}.no{background:#fee2e2;color:#991b1b}
+.qty{font-size:34px;font-weight:800;margin:8px 0}
+.row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #eee;font-size:14px}
+.row:last-child{border-bottom:0}.label{color:#6b7280}.value{text-align:right;font-weight:600;word-break:break-word}
+.actions{display:flex;gap:8px;margin-top:12px}.actions button{flex:1}
+.related{margin-top:12px}.related h3{margin:0 0 8px;font-size:16px}
+.related-item{border:1px solid #e5e7eb;border-radius:12px;padding:11px;margin-top:8px;background:#fafafa}
+.related-item .mini{font-size:12px;color:#6b7280;margin-top:3px}
+.upload-box{border:2px dashed #cbd5e1;border-radius:14px;padding:22px;text-align:center;background:#fafafa}
+.upload-box input{width:100%;margin-top:12px}
+.notice{padding:12px;border-radius:12px;background:#fef3c7;color:#92400e;font-size:13px;margin-top:10px}
+.success{padding:12px;border-radius:12px;background:#dcfce7;color:#166534;font-size:13px;margin-top:10px}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+.stat b{display:block;font-size:21px}.stat span{font-size:12px;color:#6b7280}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal.show{display:flex}.modal-box{background:#fff;border-radius:16px;padding:18px;max-width:430px;width:100%}
+.modal-box h3{margin:0 0 8px}.modal-box p{font-size:14px;color:#4b5563;line-height:1.45}
+.modal-actions{display:flex;gap:8px;margin-top:15px}.modal-actions button{flex:1}
+.small{font-size:12px;color:#6b7280}
+.empty{color:#6b7280;text-align:center;padding:20px 5px}
+@media(max-width:420px){.row{font-size:13px}.value{max-width:62%}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <button class="menu" id="menuBtn">☰</button>
+  <div class="title">The Deal – Stock Scanner</div>
+</header>
+
+<div class="drawer" id="drawer">
+  <div class="drawer-bg" id="drawerBg"></div>
+  <aside class="drawer-panel">
+    <div class="drawer-title">📦 Stock Scanner</div>
+    <nav class="nav">
+      <button data-page="scanner" class="active">📷 Scanner</button>
+      <button data-page="upload">📁 Upload Data</button>
+      <button data-page="statusPage">📊 Data Status</button>
+    </nav>
+    <div class="small" style="margin:22px 8px">Upload a new daily SOH CSV to replace the current inventory on this device.</div>
+  </aside>
+</div>
+
+<main>
+<section id="scanner" class="page active">
+  <h1>Barcode Scanner</h1>
+  <div class="sub">Fast barcode / Product ID lookup</div>
+
+  <div class="card">
+    <button id="scan" class="scan">📷 Scan Barcode</button>
+    <div class="reader-wrap"><div id="reader"></div><div id="scanbox" class="scanbox"></div></div>
+    <div id="cameraTools" class="camera-tools">
+      <button id="torch">🔦 Flash</button>
+      <button id="zoomReset">1× Zoom</button>
+    </div>
+    <div id="zoomLine" class="zoomline">
+      <span>Zoom</span><input id="zoom" type="range" min="1" max="3" step="0.1" value="1"><span id="zoomVal">1×</span>
+    </div>
+    <div id="status" class="status">Loading inventory…</div>
+  </div>
+
+  <div class="card">
+    <div class="manual">
+      <input id="q" inputmode="numeric" autocomplete="off" placeholder="Barcode / Product ID">
+      <button id="go" class="secondary">Search</button>
+    </div>
+    <div class="hint">Manual entry is available if a barcode cannot be scanned.</div>
+  </div>
+
+  <div id="result" class="card" aria-live="polite"></div>
+</section>
+
+<section id="upload" class="page">
+  <h1>Upload Daily Data</h1>
+  <div class="sub">Replace the current inventory with today's CSV</div>
+  <div class="card">
+    <div class="upload-box">
+      <b>Choose the new SOH CSV</b>
+      <div class="small" style="margin-top:6px">The new file stays on this device. It replaces the current inventory only after confirmation.</div>
+      <input id="csvFile" type="file" accept=".csv,text/csv">
+    </div>
+    <div id="uploadPreview"></div>
+  </div>
+</section>
+
+<section id="statusPage" class="page">
+  <h1>Data Status</h1>
+  <div class="sub">Current inventory stored on this device</div>
+  <div class="card">
+    <div id="dataStats" class="empty">Checking data…</div>
+  </div>
+  <div class="card">
+    <button id="clearData" class="secondary" style="width:100%">Clear Uploaded Inventory</button>
+    <div class="hint">This removes the uploaded inventory and returns the app to its built-in data.js data.</div>
+  </div>
+</section>
+</main>
+</div>
+
+<div class="modal" id="confirmModal">
+  <div class="modal-box">
+    <h3>Replace Current Inventory?</h3>
+    <p id="confirmText"></p>
+    <div class="modal-actions">
+      <button id="cancelReplace" class="secondary">Cancel</button>
+      <button id="confirmReplace" class="scan">Replace</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="data.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const norm=v=>{const s=String(v??'').trim().replace(/\s/g,'');return /^\d+$/.test(s)?s.replace(/^0+(?=\d)/,''):s};
+let products=[];
+let byCode=new Map(), byVPN=new Map();
+let scanner=null,running=false,track=null,torchOn=false,scanLock=false;
+let pendingImport=null, audioCtx=null;
+
+function buildIndexes(){
+  byCode=new Map();byVPN=new Map();
+  products.forEach(p=>{
+    if(p.barcode)byCode.set(norm(p.barcode),p);
+    if(p.itemNo)byCode.set(norm(p.itemNo),p);
+    if(p.vpn){
+      const k=String(p.vpn).trim();
+      if(!byVPN.has(k))byVPN.set(k,[]);
+      byVPN.get(k).push(p);
+    }
+  });
+}
+
+function beep(ok){
+  try{
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    const now=audioCtx.currentTime,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+    osc.connect(gain);gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(ok?880:330,now);
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(.18,now+.02);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+.2);
+    osc.start(now);osc.stop(now+.22);
+  }catch(e){}
+}
+
+function vibrate(ok){if(navigator.vibrate)navigator.vibrate(ok?[60,40,90]:[160,60,160])}
+
+function renderProduct(p){
+  const ok=Number(p.soh)>0;
+  const vpn=String(p.vpn||'').trim();
+  const related=(vpn&&byVPN.has(vpn)?byVPN.get(vpn):[]).filter(x=>String(x.itemNo)!==String(p.itemNo));
+  let html='<span class="badge '+(ok?'ok':'no')+'">'+(ok?'AVAILABLE':'NOT AVAILABLE')+'</span>'+
+    '<div class="qty">'+esc(p.soh??0)+' unit'+(Number(p.soh)==1?'':'s')+'</div>'+
+    [['Product ID',p.itemNo],['Barcode',p.barcode],['Product',p.item],['Brand',p.brand],['Retail Price',p.retailPrice],['VPN',p.vpn]].map(a=>
+      '<div class="row"><span class="label">'+a[0]+'</span><span class="value">'+esc(a[1]??'-')+'</span></div>').join('');
+  if(related.length){
+    html+='<div class="related"><h3>Related items with same VPN</h3>';
+    related.forEach(x=>{
+      html+='<div class="related-item"><b>'+esc(x.itemNo||'-')+'</b>'+
+        '<div class="mini">Barcode: '+esc(x.barcode||'-')+'</div>'+
+        '<div class="mini">'+esc(x.item||'-')+'</div>'+
+        '<div class="mini">Price: '+esc(x.retailPrice??'-')+' · SOH: '+esc(x.soh??0)+'</div></div>';
+    });
+    html+='</div>';
+  }
+  html+='<div class="actions"><button id="next" class="scan">📷 Scan Again</button></div>';
+  $('result').innerHTML=html;$('result').style.display='block';
+  $('status').textContent=ok?'Match found — '+p.soh+' unit(s) available.':'Match found — 0 units.';
+  $('next').onclick=()=>{ $('result').style.display='none'; startScanner(); };
+}
+
+function search(x,fromScan=false){
+  x=norm(x);if(!x)return;
+  const p=byCode.get(x);
+  if(!p){
+    beep(false);vibrate(false);
+    $('result').innerHTML='<span class="badge no">NOT AVAILABLE</span><div class="qty">No Match</div>'+
+      '<div class="row"><span class="label">Searched</span><span class="value">'+esc(x)+'</span></div>'+
+      '<div class="actions"><button id="next" class="scan">📷 Scan Again</button></div>';
+    $('result').style.display='block';$('status').textContent='No barcode or Product ID found.';
+    $('next').onclick=()=>{$('result').style.display='none';startScanner()};
+    return;
+  }
+  const ok=Number(p.soh)>0;beep(ok);vibrate(ok);renderProduct(p);
+}
+
+async function stopScanner(){
+  scanLock=true;
+  const s=scanner;scanner=null;running=false;
+  if(s){try{await s.stop()}catch(e){}try{s.clear()}catch(e){}}
+  track=null;torchOn=false;
+  $('reader').style.display='none';$('scanbox').style.display='none';
+  $('cameraTools').style.display='none';$('zoomLine').style.display='none';
+  $('scan').textContent='📷 Scan Barcode';
+}
+
+async function setupCameraControls(){
+  try{
+    const video=document.querySelector('#reader video');
+    track=video?.srcObject?.getVideoTracks?.()[0]||null;if(!track)return;
+    const caps=track.getCapabilities?.()||{};
+    $('torch').style.display=caps.torch?'block':'none';
+    const max=Number(caps.zoom?.max||1);
+    if(max>1){$('zoom').max=Math.min(3,max);$('zoom').value=1;$('zoomLine').style.display='flex'}
+    $('cameraTools').style.display='flex';$('scanbox').style.display='block';
+  }catch(e){}
+}
+
+async function setZoom(v){
+  try{
+    if(track&&track.getCapabilities?.().zoom){
+      const z=Math.min(Number(v),Number(track.getCapabilities().zoom.max));
+      await track.applyConstraints({advanced:[{zoom:z}]});
+      $('zoomVal').textContent=z.toFixed(1).replace('.0','')+'×';
+    }
+  }catch(e){}
+}
+
+async function startScanner(){
+  if(running){await stopScanner();return}
+  scanLock=false;$('result').style.display='none';$('reader').style.display='block';
+  $('scan').textContent='✕ Close Camera';$('status').textContent='Opening camera…';
+  try{
+    const s=new Html5Qrcode('reader');scanner=s;running=true;
+    const formats=[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39].filter(Boolean);
+    await s.start({facingMode:'environment'},
+      {fps:15,qrbox:{width:320,height:160},aspectRatio:1.7777778,disableFlip:true,formatsToSupport:formats},
+      async text=>{
+        if(scanLock||!running||scanner!==s)return;
+        scanLock=true;await stopScanner();search(text,true);
+      },()=>{});
+    await new Promise(r=>setTimeout(r,350));
+    if(scanner===s&&running)await setupCameraControls();
+  }catch(e){
+    await stopScanner();
+    $('status').textContent='Camera unavailable. Please check camera permission and try again.';
+  }
+}
+
+$('scan').onclick=startScanner;
+$('go').onclick=()=>search($('q').value);
+$('q').onkeydown=e=>{if(e.key==='Enter')search($('q').value)};
+$('torch').onclick=async()=>{try{if(track){torchOn=!torchOn;await track.applyConstraints({advanced:[{torch:torchOn}]});$('torch').textContent=torchOn?'🔦 Flash On':'🔦 Flash'}}catch(e){}};
+$('zoom').oninput=e=>setZoom(e.target.value);
+$('zoomReset').onclick=()=>{$('zoom').value=1;setZoom(1)};
+
+function openPage(page){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  $(page).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
+  $('drawer').classList.remove('open');
+  if(page!=='scanner'&&running)stopScanner();
+  if(page==='statusPage')renderStatus();
+}
+
+$('menuBtn').onclick=()=>$('drawer').classList.add('open');
+$('drawerBg').onclick=()=>$('drawer').classList.remove('open');
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>openPage(b.dataset.page));
+
+function parseCSV(text){
+  const rows=[];let row=[],cell='',quoted=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i],n=text[i+1];
+    if(c==='"'){if(quoted&&n==='"'){cell+='"';i++}else quoted=!quoted}
+    else if(c===','&&!quoted){row.push(cell);cell=''}
+    else if((c==='\n'||c==='\r')&&!quoted){
+      if(c==='\r'&&n==='\n')i++;
+      row.push(cell);cell='';
+      if(row.some(v=>String(v).trim()!==''))rows.push(row);
+      row=[];
+    }else cell+=c;
+  }
+  if(cell!==''||row.length){row.push(cell);if(row.some(v=>String(v).trim()!==''))rows.push(row)}
+  return rows;
+}
+
+function makeProducts(text){
+  const rows=parseCSV(text);
+  let hi=rows.findIndex(r=>r.some(c=>String(c).trim().toLowerCase()==='product id'));
+  if(hi<0)hi=rows.findIndex(r=>r.some(c=>String(c).toLowerCase().includes('product id')));
+  if(hi<0)throw new Error('Could not find the Product ID header in this CSV.');
+  const headers=rows[hi].map(h=>String(h).trim().toLowerCase());
+  const idx=name=>headers.findIndex(h=>h===name||h.includes(name));
+  const I={
+    itemNo:idx('product id'),item:idx('product description w/o vpn'),
+    barcode:idx('barcode'),vpn:idx('vpn'),brand:idx('brand'),
+    division:idx('department'),gender:idx('gender'),size:idx('size'),
+    retailPrice:idx('retail selling price local'),soh:idx('daily closing soh quantity'),
+    stockDate:idx('stock date')
+  };
+  if(I.itemNo<0||I.barcode<0||I.soh<0)throw new Error('Required columns Product ID, Barcode, or Daily closing SOH quantity are missing.');
+  const out=[];
+  for(let i=hi+1;i<rows.length;i++){
+    const r=rows[i];if(!r.length)continue;
+    const get=k=>I[k]>=0?String(r[I[k]]??'').trim():'';
+    const itemNo=get('itemNo'),barcode=get('barcode');
+    if(!itemNo&&!barcode)continue;
+    out.push({itemNo,item:get('item'),barcode,vpn:get('vpn'),brand:get('brand'),division:get('division'),
+      gender:get('gender'),size:get('size'),retailPrice:get('retailPrice'),soh:Number(String(get('soh')).replace(/,/g,''))||0,stockDate:get('stockDate')});
+  }
+  return out;
+}
+
+const DB='theDealStockDB',STORE='inventory';
+function dbOpen(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB,1);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:'id',autoIncrement:true})};
+    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+  });
+}
+async function dbGetAll(){
+  const db=await dbOpen();
+  return new Promise((resolve,reject)=>{const r=db.transaction(STORE,'readonly').objectStore(STORE).getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+}
+async function dbReplace(arr){
+  const db=await dbOpen();
+  await new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite'),s=tx.objectStore(STORE);s.clear();
+    arr.forEach(x=>s.add(x));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+  });
+}
+async function dbClear(){
+  const db=await dbOpen();
+  await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+}
+
+async function loadInventory(){
+  try{
+    const saved=await dbGetAll();
+    if(saved.length){products=saved;buildIndexes();$('status').textContent=saved.length.toLocaleString()+' SKUs loaded from uploaded inventory.';return}
+  }catch(e){}
+  products=Array.isArray(window.PRODUCTS)?window.PRODUCTS:[];
+  buildIndexes();
+  $('status').textContent=products.length.toLocaleString()+' SKUs loaded from built-in data.';
+}
+
+$('csvFile').onchange=async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{
+    $('uploadPreview').innerHTML='<div class="notice">Reading CSV…</div>';
+    const text=await file.text(),arr=makeProducts(text);
+    pendingImport=arr;
+    const date=arr.find(x=>x.stockDate)?.stockDate||'Not detected';
+    $('confirmText').textContent=`The new file contains ${arr.length.toLocaleString()} SKUs (stock date: ${date}). Your current inventory will be replaced on this device. Continue?`;
+    $('confirmModal').classList.add('show');
+    $('uploadPreview').innerHTML='<div class="success">CSV ready: '+arr.length.toLocaleString()+' SKUs detected.</div>';
+  }catch(err){
+    pendingImport=null;$('uploadPreview').innerHTML='<div class="notice">Could not read this CSV: '+esc(err.message||err)+'</div>';
+  }
+};
+
+$('cancelReplace').onclick=()=>{$('confirmModal').classList.remove('show');pendingImport=null};
+$('confirmReplace').onclick=async()=>{
+  if(!pendingImport)return;
+  const arr=pendingImport;
+  $('confirmModal').classList.remove('show');
+  $('uploadPreview').innerHTML='<div class="notice">Saving inventory…</div>';
+  try{
+    await dbReplace(arr);products=arr;buildIndexes();
+    $('uploadPreview').innerHTML='<div class="success">Inventory replaced successfully with '+arr.length.toLocaleString()+' SKUs.</div>';
+    $('status').textContent=arr.length.toLocaleString()+' SKUs loaded from uploaded inventory.';
+    renderStatus();
+  }catch(e){$('uploadPreview').innerHTML='<div class="notice">Could not save inventory: '+esc(e.message||e)+'</div>'}
+  pendingImport=null;
+};
+
+async function renderStatus(){
+  const saved=await dbGetAll().catch(()=>[]);
+  const using=saved.length?saved:products;
+  const dates=[...new Set(using.map(x=>x.stockDate).filter(Boolean))];
+  $('dataStats').innerHTML='<div class="statgrid">'+
+    '<div class="stat"><b>'+using.length.toLocaleString()+'</b><span>SKUs loaded</span></div>'+
+    '<div class="stat"><b>'+dates.length+'</b><span>Stock date(s)</span></div></div>'+
+    '<div class="row" style="margin-top:10px"><span class="label">Source</span><span class="value">'+(saved.length?'Uploaded CSV':'Built-in data.js')+'</span></div>'+
+    '<div class="row"><span class="label">Stock date</span><span class="value">'+esc(dates.join(', ')||'Not available')+'</span></div>';
+}
+$('clearData').onclick=async()=>{
+  if(confirm('Clear the uploaded inventory and return to the built-in data.js data?')){
+    await dbClear();await loadInventory();renderStatus();
+  }
+};
+
+loadInventory().then(renderStatus);
+</script>
+</body>
+</html>
