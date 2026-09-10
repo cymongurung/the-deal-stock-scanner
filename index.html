@@ -50,9 +50,17 @@ button,input{font:inherit}button{min-height:48px;border:0;border-radius:12px;fon
 <script src="data.js"></script>
 <script>
 const P=window.PRODUCTS||[], M=new Map();
+
+// Normalize barcodes so leading zeros never cause a false "No Match".
+// Example: 009425826583 and 9425826583 are treated as the same barcode.
+function normalizeBarcode(v){
+  const s=String(v??'').trim().replace(/\s/g,'');
+  if(!/^\d+$/.test(s)) return s;
+  return s.replace(/^0+(?=\d)/,'');
+}
 P.forEach(p=>{
-  if(p.barcode) M.set(p.barcode.replace(/\s/g,''),p);
-  if(p.itemNo) M.set(p.itemNo.replace(/\s/g,''),p);
+  if(p.barcode) M.set(normalizeBarcode(p.barcode),p);
+  if(p.itemNo) M.set(normalizeBarcode(p.itemNo),p);
 });
 
 const $=id=>document.getElementById(id);
@@ -92,7 +100,7 @@ function vibrate(type){
 }
 
 function search(x, fromScan=false){
-  x=String(x||'').trim().replace(/\s/g,'');
+  x=normalizeBarcode(x);
   if(!x)return;
   const p=M.get(x), r=$('result');
 
