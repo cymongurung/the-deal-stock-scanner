@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>The Deal Stock Scanner</title>
+<style>
+body{margin:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,Arial;color:#111827}
+main{max-width:520px;margin:auto;padding:18px 14px 30px}
+h1{font-size:23px;margin:0}.sub{color:#6b7280;font-size:13px;margin:4px 0 16px}
+.card{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin-bottom:12px}
+button,input{font:inherit}button{min-height:48px;border:0;border-radius:12px;font-weight:700;padding:0 16px}
+.scan{width:100%;background:#111827;color:white;font-size:17px}.secondary{background:#eef0f3}
+.manual{display:flex;gap:8px}.manual input{flex:1;min-width:0;border:1px solid #d1d5db;border-radius:12px;padding:0 12px;font-size:17px}
+.status{font-size:13px;color:#6b7280;margin-top:9px}
+.result{display:none}.scan-result{padding:12px 0;border-bottom:1px solid #e5e7eb}.scan-result:first-child{padding-top:0}.scan-result:last-child{border-bottom:0}
+.badge{display:inline-block;border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800}.ok{background:#dcfce7;color:#166534}.no{background:#fee2e2;color:#991b1b}
+.qty{font-size:34px;font-weight:800;margin:8px 0}.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #eee;font-size:14px}.label{color:#6b7280}.value{text-align:right;font-weight:600}
+#reader{display:none;margin-top:12px;border-radius:12px;overflow:hidden;background:#000}.reader-wrap{position:relative}
+.scanbox{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:78%;height:28%;border:3px solid white;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.18);pointer-events:none;display:none}
+.camera-tools{display:none;gap:8px;margin-top:10px}.camera-tools button{flex:1;background:#eef0f3}
+.zoomline{display:none;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:#6b7280}.zoomline input{flex:1}
+.actions{display:flex;gap:8px;margin-top:12px}.actions button{flex:1}
+.hint{font-size:12px;color:#6b7280;margin-top:8px}.live-note{font-size:12px;color:#6b7280;margin-top:8px;text-align:center}
+</style>
+</head>
+<body>
+<main>
+<h1>📦 The Deal – Stock Scanner</h1>
+<div class="sub">Fast barcode / Item No. lookup</div>
+<div class="card">
+  <button id="scan" class="scan">📷 Scan Barcode</button>
+  <div class="reader-wrap"><div id="reader"></div><div id="scanbox" class="scanbox"></div></div>
+  <div id="cameraTools" class="camera-tools"><button id="torch">🔦 Flash</button><button id="zoomReset">1× Zoom</button></div>
+  <div id="zoomLine" class="zoomline"><span>Zoom</span><input id="zoom" type="range" min="1" max="3" step="0.1" value="1"><span id="zoomVal">1×</span></div>
+  <div class="live-note">One scan at a time. After a successful read, the camera closes. Tap Scan Again when you are ready for the next barcode.</div>
+  <div id="status" class="status">Ready — tap Scan Barcode.</div>
+</div>
+<div class="card">
+  <div class="manual"><input id="q" inputmode="numeric" autocomplete="off" placeholder="Barcode / Item No."><button id="go" class="secondary">Search</button></div>
+  <div class="hint">Manual entry is available if a barcode cannot be scanned.</div>
+</div>
+<div id="result" class="card" aria-live="polite"></div>
+</main>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="data.js"></script>
+<script>
+const P=window.PRODUCTS||[], M=new Map();
+function normalizeBarcode(v){const s=String(v??'').trim().replace(/\s/g,'');if(!/^\d+$/.test(s))return s;return s.replace(/^0+(?=\d)/,'')}
+P.forEach(p=>{if(p.barcode)M.set(normalizeBarcode(p.barcode),p);if(p.itemNo)M.set(normalizeBarcode(p.itemNo),p)});
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+let scanner=null,running=false,audioCtx=null,track=null,torchOn=false,zoomMax=1,restartTimer=null,scanLock=false,sessionId=0;
+function beep(type){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();const now=audioCtx.currentTime,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.connect(gain);gain.connect(audioCtx.destination);if(type==='success'){osc.frequency.setValueAtTime(880,now);osc.frequency.setValueAtTime(1175,now+.09);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.22,now+.015);gain.gain.exponentialRampToValueAtTime(.0001,now+.20);osc.start(now);osc.stop(now+.22)}else{osc.type='square';osc.frequency.setValueAtTime(330,now);osc.frequency.setValueAtTime(220,now+.12);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.18,now+.015);gain.gain.exponentialRampToValueAtTime(.0001,now+.28);osc.start(now);osc.stop(now+.30)}}catch(e){}}
+function vibrate(type){if(navigator.vibrate)navigator.vibrate(type==='success'?[70,40,100]:[180,60,180])}
+function search(x,fromScan=false){x=normalizeBarcode(x);if(!x)return;const p=M.get(x),r=$('result');if(!p){beep('error');vibrate('error');r.style.display='block';r.innerHTML='<span class="badge no">NOT AVAILABLE</span><div class="qty">No Match</div><div class="row"><span class="label">Searched</span><span class="value">'+esc(x)+'</span></div><div class="actions"><button id="next" class="scan">📷 Scan Next</button></div>';$('status').textContent='No barcode or Item No. found.';bindNext();return}const ok=Number(p.soh)>0;beep(ok?'success':'error');vibrate(ok?'success':'error');r.style.display='block';r.innerHTML='<span class="badge '+(ok?'ok':'no')+'">'+(ok?'AVAILABLE':'NOT AVAILABLE')+'</span><div class="qty">'+p.soh+' unit'+(p.soh==1?'':'s')+'</div>'+[['Barcode',p.barcode],['Item No.',p.itemNo],['Item',p.item],['Brand',p.brand],['Category',p.division],['Gender',p.gender],['Size',p.size]].map(a=>'<div class="row"><span class="label">'+a[0]+'</span><span class="value">'+esc(a[1]||'-')+'</span></div>').join('')+'<div class="actions"><button id="next" class="scan">📷 Scan Next</button></div>';$('status').textContent=ok?'Match found — '+p.soh+' unit(s) available.':'Match found — 0 units.';bindNext()}
+function bindNext(){const n=$('next');if(n)n.onclick=()=>{$('result').style.display='none';startScanner()}}
+async function stopScanner(){if(restartTimer){clearTimeout(restartTimer);restartTimer=null}scanLock=true;const s=scanner;scanner=null;running=false;if(s){try{await s.stop()}catch(e){}try{s.clear()}catch(e){}}track=null;torchOn=false;$('reader').style.display='none';$('scanbox').style.display='none';$('cameraTools').style.display='none';$('zoomLine').style.display='none';$('scan').textContent='📷 Scan Barcode'}
+async function setupCameraControls(){try{const video=document.querySelector('#reader video');track=video?.srcObject?.getVideoTracks?.()[0]||null;if(!track)return;const caps=track.getCapabilities?.()||{};if(caps.torch)$('torch').style.display='block';else $('torch').style.display='none';zoomMax=Number(caps.zoom?.max||1);const zi=$('zoom');if(zoomMax>1){zi.max=Math.min(3,zoomMax);zi.value=1;$('zoomLine').style.display='flex'}else $('zoomLine').style.display='none';$('cameraTools').style.display='flex';$('scanbox').style.display='block';}catch(e){}}
+async function setZoom(v){try{if(!track)return;const caps=track.getCapabilities?.();if(caps?.zoom){const z=Math.min(Number(v),Number(caps.zoom.max));await track.applyConstraints({advanced:[{zoom:z}]});$('zoomVal').textContent=z.toFixed(1).replace('.0','')+'×'}}catch(e){}}
+async function finishScan(){await stopScanner();$('status').textContent='Scan captured. Tap Scan Again when ready for the next barcode.'}
+
+async function startScanner(){if(running){await stopScanner();return}scanLock=false;sessionId++; $('result').style.display='none';$('reader').style.display='block';$('scan').textContent='✕ Close Camera';$('status').textContent='Place the barcode inside the box. Move closer if needed.';const sid=sessionId;try{const s=new Html5Qrcode('reader');scanner=s;running=true;const formats=[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39].filter(Boolean);await s.start({facingMode:{exact:'environment'}},{fps:15,qrbox:{width:320,height:160},aspectRatio:1.7777778,disableFlip:true,formatsToSupport:formats},async text=>{if(scanLock||!running||scanner!==s||sid!==sessionId)return;scanLock=true;search(text,true);await finishScan()},()=>{});await new Promise(r=>setTimeout(r,350));if(scanner===s&&running)await setupCameraControls()}catch(e){if(sid===sessionId){await stopScanner();$('status').textContent='Camera unavailable. Check permission and make sure the site is opened with HTTPS.'}}}
+$('torch').onclick=async()=>{try{if(track){torchOn=!torchOn;await track.applyConstraints({advanced:[{torch:torchOn}]});$('torch').textContent=torchOn?'🔦 Flash On':'🔦 Flash'}}catch(e){}};
+$('zoom').oninput=e=>setZoom(e.target.value);$('zoomReset').onclick=()=>{$('zoom').value=1;setZoom(1)};$('scan').onclick=()=>{if(running)stopScanner();else startScanner()};$('go').onclick=()=>search($('q').value);$('q').onkeydown=e=>{if(e.key==='Enter')search(e.target.value)};$('status').textContent=P.length+' SKUs loaded. Ready to scan.';
+</script>
+</body>
+</html>
