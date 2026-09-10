@@ -1,14 +1,171 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111827"><title>The Deal Stock Scanner</title><style>
-body{margin:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,Arial;color:#111827}main{max-width:520px;margin:auto;padding:18px 14px}h1{font-size:23px;margin:0}.sub{color:#6b7280;font-size:13px;margin:4px 0 16px}.card{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin-bottom:12px}button,input{font:inherit}button{min-height:48px;border:0;border-radius:12px;font-weight:700;padding:0 16px}.scan{width:100%;background:#111827;color:white;font-size:17px}.manual{display:flex;gap:8px}.manual input{flex:1;min-width:0;border:1px solid #d1d5db;border-radius:12px;padding:0 12px;font-size:17px}.secondary{background:#eef0f3}.status{font-size:13px;color:#6b7280;margin-top:9px}.result{display:none}.badge{display:inline-block;border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800}.ok{background:#dcfce7;color:#166534}.no{background:#fee2e2;color:#991b1b}.qty{font-size:30px;font-weight:800;margin:8px 0}.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #eee;font-size:14px}.label{color:#6b7280}.value{text-align:right;font-weight:600}#reader{display:none;margin-top:12px;border-radius:12px;overflow:hidden;background:#000}.hint{font-size:12px;color:#6b7280;margin-top:8px}</style></head><body><main>
-<h1>📦 The Deal – Stock Scanner</h1><div class="sub">Scan barcode or search Item No. instantly</div>
-<div class="card"><button id="scan" class="scan">📷 Scan Barcode</button><div id="reader"></div><div id="status" class="status">Tap the button and allow camera access.</div></div>
-<div class="card"><div class="manual"><input id="q" inputmode="numeric" placeholder="Barcode / Item No."><button id="go" class="secondary">Search</button></div><div class="hint">Works with barcode or Item No.</div></div>
-<div id="result" class="card"></div></main>
-<script src="https://unpkg.com/html5-qrcode"></script><script src="data.js"></script><script>
-const P=window.PRODUCTS||[],M=new Map();P.forEach(p=>{if(p.barcode)M.set(p.barcode.replace(/\s/g,''),p);if(p.itemNo)M.set(p.itemNo.replace(/\s/g,''),p)});
-const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-function search(x){x=String(x||'').trim().replace(/\s/g,'');if(!x)return;let p=M.get(x),r=$('result');r.style.display='block';if(!p){r.innerHTML='<span class="badge no">NOT AVAILABLE</span><div class="qty">No Match</div><div class="row"><span class="label">Searched</span><span class="value">'+esc(x)+'</span></div>';$('status').textContent='No barcode or Item No. found.';return}let ok=p.soh>0;r.innerHTML='<span class="badge '+(ok?'ok':'no')+'">'+(ok?'AVAILABLE':'NOT AVAILABLE')+'</span><div class="qty">'+p.soh+' unit'+(p.soh==1?'':'s')+'</div>'+[['Barcode',p.barcode],['Item No.',p.itemNo],['Item',p.item],['Brand',p.brand],['Category',p.division],['Gender',p.gender],['Size',p.size]].map(a=>'<div class="row"><span class="label">'+a[0]+'</span><span class="value">'+esc(a[1]||'-')+'</span></div>').join('');$('status').textContent='Match found.'}
-let scanner=null,running=false;
-async function toggle(){if(running){try{await scanner.stop();scanner.clear()}catch(e){}running=false;$('reader').style.display='none';$('scan').textContent='📷 Scan Barcode';return}$('reader').style.display='block';$('scan').textContent='✕ Stop Scanner';$('status').textContent='Point camera at barcode.';scanner=new Html5Qrcode('reader');running=true;try{await scanner.start({facingMode:'environment'},{fps:12,qrbox:{width:280,height:140}},t=>{search(t);toggle()})}catch(e){$('status').textContent='Camera unavailable. Use Search instead.';toggle()}}
-$('scan').onclick=toggle;$('go').onclick=()=>search($('q').value);$('q').onkeydown=e=>{if(e.key==='Enter')search(e.target.value)};$('status').textContent=P.length+' SKUs loaded. Tap Scan Barcode.';
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>The Deal Stock Scanner</title>
+<style>
+body{margin:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,Arial;color:#111827}
+main{max-width:520px;margin:auto;padding:18px 14px 30px}
+h1{font-size:23px;margin:0}.sub{color:#6b7280;font-size:13px;margin:4px 0 16px}
+.card{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin-bottom:12px}
+button,input{font:inherit}button{min-height:48px;border:0;border-radius:12px;font-weight:700;padding:0 16px}
+.scan{width:100%;background:#111827;color:white;font-size:17px}.secondary{background:#eef0f3}
+.manual{display:flex;gap:8px}.manual input{flex:1;min-width:0;border:1px solid #d1d5db;border-radius:12px;padding:0 12px;font-size:17px}
+.status{font-size:13px;color:#6b7280;margin-top:9px}
+.result{display:none}.badge{display:inline-block;border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800}
+.ok{background:#dcfce7;color:#166534}.no{background:#fee2e2;color:#991b1b}
+.qty{font-size:34px;font-weight:800;margin:8px 0}
+.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #eee;font-size:14px}
+.label{color:#6b7280}.value{text-align:right;font-weight:600}
+#reader{display:none;margin-top:12px;border-radius:12px;overflow:hidden;background:#000}
+.actions{display:flex;gap:8px;margin-top:12px}.actions button{flex:1}
+.hint{font-size:12px;color:#6b7280;margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+<h1>📦 The Deal – Stock Scanner</h1>
+<div class="sub">Fast barcode / Item No. lookup</div>
+
+<div class="card">
+  <button id="scan" class="scan">📷 Scan Barcode</button>
+  <div id="reader"></div>
+  <div id="status" class="status">Ready — tap Scan Barcode.</div>
+</div>
+
+<div class="card">
+  <div class="manual">
+    <input id="q" inputmode="numeric" autocomplete="off" placeholder="Barcode / Item No.">
+    <button id="go" class="secondary">Search</button>
+  </div>
+  <div class="hint">Manual entry is available if a barcode cannot be scanned.</div>
+</div>
+
+<div id="result" class="card" aria-live="polite"></div>
+</main>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="data.js"></script>
+<script>
+const P=window.PRODUCTS||[], M=new Map();
+P.forEach(p=>{
+  if(p.barcode) M.set(p.barcode.replace(/\s/g,''),p);
+  if(p.itemNo) M.set(p.itemNo.replace(/\s/g,''),p);
+});
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+let scanner=null, running=false, audioCtx=null;
+
+function beep(type){
+  try{
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    const now=audioCtx.currentTime;
+    const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+
+    if(type==='success'){
+      osc.frequency.setValueAtTime(880,now);
+      osc.frequency.setValueAtTime(1175,now+0.09);
+      gain.gain.setValueAtTime(0.0001,now);
+      gain.gain.exponentialRampToValueAtTime(0.22,now+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001,now+0.20);
+      osc.start(now); osc.stop(now+0.22);
+    }else{
+      osc.type='square';
+      osc.frequency.setValueAtTime(330,now);
+      osc.frequency.setValueAtTime(220,now+0.12);
+      gain.gain.setValueAtTime(0.0001,now);
+      gain.gain.exponentialRampToValueAtTime(0.18,now+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001,now+0.28);
+      osc.start(now); osc.stop(now+0.30);
+    }
+  }catch(e){}
+}
+
+function vibrate(type){
+  if(!navigator.vibrate) return;
+  navigator.vibrate(type==='success'?[70,40,100]:[180,60,180]);
+}
+
+function search(x, fromScan=false){
+  x=String(x||'').trim().replace(/\s/g,'');
+  if(!x)return;
+  const p=M.get(x), r=$('result');
+
+  if(!p){
+    beep('error'); vibrate('error');
+    r.style.display='block';
+    r.innerHTML='<span class="badge no">NOT AVAILABLE</span><div class="qty">No Match</div>'+
+      '<div class="row"><span class="label">Searched</span><span class="value">'+esc(x)+'</span></div>'+
+      '<div class="actions"><button id="next" class="scan">📷 Scan Next</button></div>';
+    $('status').textContent='No barcode or Item No. found.';
+    bindNext();
+    return;
+  }
+
+  const ok=Number(p.soh)>0;
+  beep(ok?'success':'error');
+  vibrate(ok?'success':'error');
+
+  r.style.display='block';
+  r.innerHTML='<span class="badge '+(ok?'ok':'no')+'">'+(ok?'AVAILABLE':'NOT AVAILABLE')+'</span>'+
+    '<div class="qty">'+p.soh+' unit'+(p.soh==1?'':'s')+'</div>'+
+    [['Barcode',p.barcode],['Item No.',p.itemNo],['Item',p.item],['Brand',p.brand],
+     ['Category',p.division],['Gender',p.gender],['Size',p.size]]
+    .map(a=>'<div class="row"><span class="label">'+a[0]+'</span><span class="value">'+esc(a[1]||'-')+'</span></div>').join('')+
+    '<div class="actions"><button id="next" class="scan">📷 Scan Next</button></div>';
+
+  $('status').textContent=ok?'Match found — '+p.soh+' unit(s) available.':'Match found — 0 units.';
+  bindNext();
+}
+
+function bindNext(){
+  const n=$('next');
+  if(n) n.onclick=()=>{ $('result').style.display='none'; startScanner(); };
+}
+
+async function stopScanner(){
+  if(scanner && running){
+    try{await scanner.stop();}catch(e){}
+    try{scanner.clear();}catch(e){}
+  }
+  scanner=null; running=false;
+  $('reader').style.display='none';
+  $('scan').textContent='📷 Scan Barcode';
+}
+
+async function startScanner(){
+  if(running){await stopScanner();return;}
+  $('result').style.display='none';
+  $('reader').style.display='block';
+  $('scan').textContent='✕ Stop Scanner';
+  $('status').textContent='Point the camera at the barcode.';
+  try{
+    if(!scanner) scanner=new Html5Qrcode('reader');
+    running=true;
+    await scanner.start(
+      {facingMode:'environment'},
+      {fps:12,qrbox:{width:280,height:140}},
+      async text=>{
+        await stopScanner();
+        search(text,true);
+      },
+      ()=>{}
+    );
+  }catch(e){
+    $('status').textContent='Camera unavailable. Check permission and make sure the site is opened with HTTPS.';
+    await stopScanner();
+  }
+}
+
+$('scan').onclick=startScanner;
+$('go').onclick=()=>search($('q').value);
+$('q').onkeydown=e=>{if(e.key==='Enter')search(e.target.value)};
+$('status').textContent=P.length+' SKUs loaded. Ready to scan.';
+</script>
+</body>
+</html>
